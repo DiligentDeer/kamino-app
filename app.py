@@ -5,8 +5,10 @@ from pages.markets_overview import markets_overview
 from pages.main_market import main_market
 from pages.jlp_market import jlp_market
 from pages.maple_market import maple_market
-from pages.ethena_market import ethena_market
-from pages.assets import assets
+from pages.pyusd_asset import pyusd_asset
+from pages.usdc_asset import usdc_asset
+from pages.leverage import leverage_page
+from pages.user_positions import user_positions
 
 earn_overview_page = st.Page(
     earn_overview,
@@ -21,10 +23,22 @@ markets_overview_page = st.Page(
     icon=":material/assessment:",
 )
 
-assets_page = st.Page(
-    assets,
-    title="Assets",
-    icon=":material/inventory_2:",
+pyusd_asset_page = st.Page(
+    pyusd_asset,
+    title="PYUSD",
+    icon=":material/attach_money:",
+)
+
+usdc_asset_page = st.Page(
+    usdc_asset,
+    title="USDC",
+    icon=":material/monetization_on:",
+)
+
+leverage_page_obj = st.Page(
+    leverage_page,
+    title="Leverage",
+    icon=":material/account_balance_wallet:",
 )
 
 main_market_page = st.Page(
@@ -45,10 +59,10 @@ maple_market_page = st.Page(
     icon=":material/forest:",
 )
 
-ethena_market_page = st.Page(
-    ethena_market,
-    title="Ethena Market",
-    icon=":material/blur_on:",
+user_positions_page = st.Page(
+    user_positions,
+    title="User Positions",
+    icon=":material/list:",
 )
 
 pg = st.navigation(
@@ -59,9 +73,9 @@ pg = st.navigation(
             main_market_page,
             jlp_market_page,
             maple_market_page,
-            ethena_market_page,
         ],
-        "Assets": [assets_page],
+        "Assets": [pyusd_asset_page, usdc_asset_page, leverage_page_obj],
+        "Positions": [user_positions_page],
     }
 )
 

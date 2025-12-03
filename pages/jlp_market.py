@@ -1,9 +1,9 @@
 import streamlit as st
+from pages.utils.market_utils import render_market_details
 
-PYUSD_RESERVE = "DUMMY_RESERVE"
-LEDNING_MARKET = "DUMMY_MARKET"
-
+# JLP Market
+MARKET_ADDRESS = "DxXdAyU3kCjnyggvHmY5nAwg5cRbbmdyX3npfDMjjMek"
+PYUSD_RESERVE = "FswUCVjvfAuzHCgPDF95eLKscGsLHyJmD6hzkhq26CLe"
 
 def jlp_market():
-    st.title("JLP Market")
-    st.write("")
+    render_market_details("JLP Market", MARKET_ADDRESS, PYUSD_RESERVE, "PYUSD")
