@@ -20,7 +20,6 @@ dependencies = [
     "streamlit>=1.49.1",
     "pandas>=2.0.0",
     "numpy>=1.24.0",
-    "plotly>=5.0.0",
     "sqlalchemy>=2.0.0",
     "psycopg2-binary>=2.9.0",
     "python-dotenv>=1.0.0",
@@ -29,6 +28,7 @@ dependencies = [
     "aiohttp>=3.8.0",
     "web3>=6.0.0",
     "pytz>=2023.3",
+    "plotly>=5.18.0",
 ]
 
 [project.optional-dependencies]

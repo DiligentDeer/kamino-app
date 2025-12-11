@@ -1,9 +1,12 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 from src.database import (
     get_max_position_timestamp, 
     get_leverage_borrowed,
-    get_leverage_collateral
+    get_leverage_collateral,
+    get_historic_leverage_where_asset_is_collateral,
+    get_historic_leverage_where_asset_is_borrowed
 )
 
 def leverage_page():
@@ -81,6 +84,62 @@ def leverage_page():
                     st.dataframe(df_collateral, use_container_width=True)
                 else:
                     st.info(f"No positions found where {asset} is collateral with debt >= ${debt_threshold:,.0f}")
-                    
+            
+            # Historic Leverage Analysis
+            st.subheader("Historic Leverage Analysis")
+            
+            df_hist_collateral = get_historic_leverage_where_asset_is_collateral(market, asset, debt_threshold)
+            df_hist_borrowed = get_historic_leverage_where_asset_is_borrowed(market, asset, debt_threshold)
+            
+            st.markdown(f"**Pairs where {asset} is Collateral (LTV over time)**")
+            if not df_hist_collateral.empty:
+                # Convert timestamp to datetime
+                df_hist_collateral['timestamp'] = pd.to_datetime(df_hist_collateral['timestamp'], unit='s', utc=True)
+                
+                fig = px.line(
+                    df_hist_collateral, 
+                    x='timestamp', 
+                    y='ltv', 
+                    color='borrow_symbol',
+                    title=f"{asset} Collateral LTV over Time"
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="LTV",
+                    xaxis=dict(showgrid=True),
+                    yaxis=dict(showgrid=True, minor=dict(showgrid=True)),
+                    legend_title="Borrowed Token"
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info(f"No historic data found where {asset} is collateral with debt >= ${debt_threshold:,.0f}")
+
+            st.markdown(f"**Pairs where {asset} is Borrowed (LTV over time)**")
+            if not df_hist_borrowed.empty:
+                # Convert timestamp to datetime
+                df_hist_borrowed['timestamp'] = pd.to_datetime(df_hist_borrowed['timestamp'], unit='s', utc=True)
+                
+                fig = px.line(
+                    df_hist_borrowed, 
+                    x='timestamp', 
+                    y='ltv', 
+                    color='supply_symbol',
+                    title=f"{asset} Borrowed LTV over Time"
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Date",
+                    yaxis_title="LTV",
+                    xaxis=dict(showgrid=True),
+                    yaxis=dict(showgrid=True, minor=dict(showgrid=True)),
+                    legend_title="Collateral Token"
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info(f"No historic data found where {asset} is borrowed with debt >= ${debt_threshold:,.0f}")
+
         else:
             st.error("Could not retrieve latest data timestamp.")

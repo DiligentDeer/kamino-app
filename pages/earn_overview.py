@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta, timezone
 from pages.mappings.markets import get_market_name, PYUSD_RESERVE_MAPPING
+from pages.utils.ui_components import render_delta_bubbles
 
 
 def earn_overview():
@@ -119,40 +120,6 @@ def earn_overview():
                         + row.iloc[0]["apyReservesIncentives"]
                         + row.iloc[0]["apyIncentives"]
                     )
-
-                def render_delta_bubbles(items, percent=False):
-                    def style(lbl, delta):
-                        if delta is None:
-                            return ("#f1f3f5", "#555", "")
-                        arrow = "↑" if delta > 0 else ("↓" if delta < 0 else "→")
-                        bg = "#e6f4ea" if delta > 0 else ("#fde8e8" if delta < 0 else "#f1f3f5")
-                        fg = "#0a0" if delta > 0 else ("#d00" if delta < 0 else "#555")
-                        return (bg, fg, arrow)
-                    def fmt_compact(n):
-                        if n is None or pd.isna(n):
-                            return "-"
-                        sign = -1 if float(n) < 0 else 1
-                        v = abs(float(n))
-                        units = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]
-                        for thresh, u in units:
-                            if v >= thresh:
-                                return ("-" if sign < 0 else "") + f"{v/thresh:.1f}{u}"
-                        return ("-" if sign < 0 else "") + f"{v:,.0f}"
-                    def fmt(delta):
-                        if delta is None:
-                            return "-"
-                        return (fmt_compact(delta) if not percent else f"{delta:.2%}")
-                    pills = []
-                    for lbl, delta in items:
-                        bg, fg, arrow = style(lbl, delta)
-                        value_txt = fmt(delta)
-                        pills.append(
-                            f"<span style='display:inline-block;margin-right:8px;margin-top:6px;padding:6px 10px;border-radius:999px;background:{bg};color:{fg};font-weight:500;font-size:13px;'>"
-                            + (f"<strong>{lbl}</strong> " if True else f"{lbl} ")
-                            + ("-" if delta is None else f"{arrow} {value_txt}")
-                            + "</span>"
-                        )
-                    st.markdown("".join(pills), unsafe_allow_html=True)
 
                 c1, c2, c3, c4 = st.columns(4)
                 with c1:

@@ -20,7 +20,12 @@ def user_positions():
     if max_ts:
         # Convert timestamp to readable format if it's a unix timestamp
         try:
-            ts_readable = pd.to_datetime(max_ts, unit='s', utc=True) if max_ts > 1e10 else pd.to_datetime(max_ts, utc=True)
+            # Check if timestamp is likely in milliseconds (13 digits) vs seconds (10 digits)
+            # 1e11 is a safe threshold (year 5138 in seconds, or year 1973 in milliseconds)
+            if max_ts > 1e11:
+                ts_readable = pd.to_datetime(max_ts, unit='ms', utc=True)
+            else:
+                ts_readable = pd.to_datetime(max_ts, unit='s', utc=True)
             st.write(f"**Latest Data Timestamp:** {ts_readable}")
         except:
             st.write(f"**Latest Data Timestamp:** {max_ts}")

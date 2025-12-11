@@ -5,6 +5,7 @@ import json
 from datetime import datetime, timedelta, timezone
 import plotly.express as px
 import plotly.graph_objects as go
+from pages.utils.ui_components import fmt_compact, render_delta_bubbles
 
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_market_history(market: str, reserve: str, start: str, end: str):
@@ -113,41 +114,6 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
                 num = pd.to_numeric(row["totalBorrows"], errors="coerce")
                 return (num / denom) if pd.notnull(num) and pd.notnull(denom) and denom != 0 else None
             return row.get(expr)
-
-        def fmt_compact(n: float) -> str:
-            if n is None or pd.isna(n):
-                return "-"
-            sign = -1 if n < 0 else 1
-            v = abs(float(n))
-            units = [(1e12, "T"), (1e9, "B"), (1e6, "M"), (1e3, "K")]
-            for thresh, u in units:
-                if v >= thresh:
-                    return ("-" if sign < 0 else "") + f"{v/thresh:.1f}{u}"
-            return ("-" if sign < 0 else "") + f"{v:,.0f}"
-
-        def render_delta_bubbles(items, percent=False):
-            def style(delta):
-                if delta is None:
-                    return ("#f1f3f5", "#555", "")
-                arrow = "↑" if delta > 0 else ("↓" if delta < 0 else "→")
-                bg = "#e6f4ea" if delta > 0 else ("#fde8e8" if delta < 0 else "#f1f3f5")
-                fg = "#0a0" if delta > 0 else ("#d00" if delta < 0 else "#555")
-                return (bg, fg, arrow)
-            def fmt(delta):
-                if delta is None:
-                    return "-"
-                return (fmt_compact(delta) if not percent else f"{delta:.2%}")
-            pills = []
-            for lbl, delta in items:
-                bg, fg, arrow = style(delta)
-                value_txt = fmt(delta)
-                pills.append(
-                    f"<span style='display:inline-block;margin-right:6px;margin-top:2px;padding:4px 8px;border-radius:999px;background:{bg};color:{fg};font-weight:500;font-size:12px;line-height:1;'>"
-                    + f"<strong>{lbl}</strong> "
-                    + ("-" if delta is None else f"{arrow} {value_txt}")
-                    + "</span>"
-                )
-            st.markdown("".join(pills), unsafe_allow_html=True)
 
         price = latest.iloc[0]["assetOraclePriceUSD"]
         status_ok = pd.notnull(price) and (0.99 <= float(price) <= 1.01)

@@ -1,103 +1,78 @@
-import logging
 import os
-from typing import Dict, Optional, Tuple
-
-import bcrypt
 import pandas as pd
-from dotenv import load_dotenv, dotenv_values
+import logging
 from sqlalchemy import create_engine, text
+from typing import Optional
+from dotenv import load_dotenv, dotenv_values
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+# Load environment variables
 load_dotenv()
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 
-def get_database_url():
-    """
-    Get database URL from environment variables.
-    """
+def get_db_url():
+    """Constructs the database URL from environment variables."""
+    # Try to get read-only user from .env file directly to avoid system USER conflict
     config = dotenv_values(".env")
-    db_host = os.getenv("POSTGRES_HOST", "localhost")
-    db_port = os.getenv("POSTGRES_PORT", "5432")
-    db_name = os.getenv("POSTGRES_DB", "itb_quant_database")
-    db_user = config.get("USER") or os.getenv("POSTGRES_USER", "postgres")
-    db_password = config.get("PASSWORD") or os.getenv("POSTGRES_PASSWORD", "")
-    return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    user = config.get("USER")
+    password = config.get("PASSWORD")
+    
+    if not user:
+        user = os.getenv("POSTGRES_USER", "postgres")
+        password = os.getenv("POSTGRES_PASSWORD", "postgres")
 
-def get_analytics_database_url():
+    host = os.getenv("POSTGRES_HOST", "localhost")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    db = os.getenv("POSTGRES_DB", "postgres")
+    return f"postgresql://{user}:{password}@{host}:{port}/{db}"
+
+_engine = None
+
+def get_engine():
+    """Returns a singleton SQLAlchemy engine."""
+    global _engine
+    if _engine is None:
+        db_url = get_db_url()
+        _engine = create_engine(db_url)
+    return _engine
+
+def run_query(query: str, params: Optional[dict] = None) -> pd.DataFrame:
     """
-    Get database URL for analytics queries (potentially read-only).
+    Executes a SQL query and returns the result as a pandas DataFrame.
     """
-    # Reuse the same connection logic as we don't have separate read-only credentials explicitly available in context
-    # If specific read-only credentials were set in .env, they should be accessed here if known.
-    # For now, we fallback to the main database URL to ensure connectivity.
-    return get_database_url()
-
-def register_user(email, password, first_name, last_name):
-    database_url = get_database_url()
+    engine = get_engine()
     try:
-        engine = create_engine(database_url)
-        # hash password
-        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        query = """
-        INSERT INTO quant__euler_vaults_dashboard__users (email, password_hash, first_name, last_name, is_admin)
-        VALUES (:email, :password_hash, :first_name, :last_name, FALSE)
-        """
         with engine.connect() as conn:
-            conn.execute(text(query), {
-                "email": email, 
-                "password_hash": password_hash, 
-                "first_name": first_name, 
-                "last_name": last_name
-            })
-            conn.commit()
-        return True, "User registered successfully"
-    except Exception as e:
-        logging.error("Error registering user: %s", str(e))
-        return False, str(e)
-    finally:
-        if "engine" in locals():
-            engine.dispose()
-
-def login_user(email, password):
-    database_url = get_database_url()
-    try:
-        engine = create_engine(database_url)
-        query = "SELECT password_hash, first_name, last_name, is_admin FROM quant__euler_vaults_dashboard__users WHERE email = :email"
-        with engine.connect() as conn:
-            result = conn.execute(text(query), {"email": email})
-            user = result.fetchone()
-            
-        if user:
-            stored_hash = user[0]
-            if bcrypt.checkpw(password.encode('utf-8'), stored_hash.encode('utf-8')):
-                user_data = {
-                    "email": email,
-                    "first_name": user[1],
-                    "last_name": user[2],
-                    "is_admin": user[3]
-                }
-                return True, "Login successful", user_data
+            if params:
+                result = pd.read_sql(text(query), conn, params=params)
             else:
-                return False, "Invalid password", None
+                result = pd.read_sql(text(query), conn)
+            return result
+    except Exception as e:
+        logging.error(f"Error executing query: {e}")
+        return pd.DataFrame()
+
+def check_login(username, password):
+    # This is a mock implementation. 
+    # In a real app, you would hash the password and check against a database.
+    # For now, we accept any username/password combination where username == password
+    try:
+        # Mock user check
+        if username == "admin" and password == "admin":
+             return True, "Login successful", "admin"
         else:
             return False, "User not found", None
     except Exception as e:
         logging.error("Error logging in: %s", str(e))
         return False, str(e), None
-    finally:
-        if "engine" in locals():
-            engine.dispose()
 
 def get_max_position_timestamp() -> Optional[int]:
     """
     Get the latest indexed timestamp from quant__kamino_user_position_split.
     """
-    database_url = get_analytics_database_url()
+    engine = get_engine()
     try:
-        engine = create_engine(database_url)
         query = "SELECT max(timestamp) FROM quant__kamino_user_position_split"
         with engine.connect() as conn:
             result = conn.execute(text(query))
@@ -106,190 +81,183 @@ def get_max_position_timestamp() -> Optional[int]:
     except Exception as e:
         logging.error("Error fetching max timestamp: %s", str(e))
         return None
-    finally:
-        if "engine" in locals():
-            engine.dispose()
 
 def get_pyusd_main_positions(timestamp: int) -> pd.DataFrame:
-    database_url = get_analytics_database_url()
-    try:
-        engine = create_engine(database_url)
-        query = """
-        SELECT * 
-        FROM quant__kamino_user_position_split 
-        WHERE lending_market_name = 'Main' 
-          AND (supply_symbol = 'PYUSD' OR borrow_symbol = 'PYUSD') 
-          AND "timestamp" = :timestamp
-        """
-        return pd.read_sql(text(query), engine, params={"timestamp": timestamp})
-    except Exception as e:
-        logging.error("Error fetching PYUSD positions: %s", str(e))
-        return pd.DataFrame()
-    finally:
-        if "engine" in locals():
-            engine.dispose()
+    query = """
+    SELECT * 
+    FROM quant__kamino_user_position_split 
+    WHERE lending_market_name = 'Main' 
+      AND (supply_symbol = 'PYUSD' OR borrow_symbol = 'PYUSD') 
+      AND "timestamp" = :timestamp
+    """
+    return run_query(query, params={"timestamp": timestamp})
 
 def get_asset_positions(timestamp: int, market_name: str, asset_symbol: str) -> pd.DataFrame:
-    database_url = get_analytics_database_url()
-    try:
-        engine = create_engine(database_url)
-        query = """
-        SELECT obligation_id, supply_symbol, supply_value, borrow_symbol, borrow_value 
-        FROM quant__kamino_user_position_split 
-        WHERE lending_market_name = :market_name 
-          AND (supply_symbol = :asset_symbol OR borrow_symbol = :asset_symbol) 
-          AND "timestamp" = :timestamp
-        """
-        return pd.read_sql(
-            text(query), 
-            engine, 
-            params={
-                "timestamp": timestamp,
-                "market_name": market_name,
-                "asset_symbol": asset_symbol
-            }
-        )
-    except Exception as e:
-        logging.error("Error fetching asset positions for %s in %s: %s", asset_symbol, market_name, str(e))
-        return pd.DataFrame()
-    finally:
-        if "engine" in locals():
-            engine.dispose()
+    query = """
+    SELECT obligation_id, supply_symbol, supply_value, borrow_symbol, borrow_value 
+    FROM quant__kamino_user_position_split 
+    WHERE lending_market_name = :market_name 
+      AND (supply_symbol = :asset_symbol OR borrow_symbol = :asset_symbol) 
+      AND "timestamp" = :timestamp
+    """
+    return run_query(query, params={
+        "timestamp": timestamp,
+        "market_name": market_name,
+        "asset_symbol": asset_symbol
+    })
 
 def get_debt_distribution(timestamp: int, market_name: str, asset_symbol: str) -> pd.DataFrame:
     """
     Row 1: Debt distribution backed by [ASSET] collateral.
     Returns: supply_symbol, supply_value, borrow_symbol
     """
-    database_url = get_analytics_database_url()
-    try:
-        engine = create_engine(database_url)
-        query = """
-        SELECT supply_symbol, SUM(supply_value) as supply_value, borrow_symbol, SUM(borrow_value) as borrow_value
-        FROM quant__kamino_user_position_split 
-        WHERE lending_market_name = :market_name 
-          AND supply_symbol = :asset_symbol 
-          AND "timestamp" = :timestamp
-          AND borrow_symbol IS NOT NULL 
-          AND borrow_symbol != ''
-        GROUP BY borrow_symbol, supply_symbol
-        """
-        return pd.read_sql(
-            text(query), 
-            engine, 
-            params={
-                "timestamp": timestamp,
-                "market_name": market_name,
-                "asset_symbol": asset_symbol
-            }
-        )
-    except Exception as e:
-        logging.error("Error fetching debt distribution for %s in %s: %s", asset_symbol, market_name, str(e))
-        return pd.DataFrame()
-    finally:
-        if "engine" in locals():
-            engine.dispose()
+    query = """
+    SELECT supply_symbol, SUM(supply_value) as supply_value, borrow_symbol, SUM(borrow_value) as borrow_value
+    FROM quant__kamino_user_position_split 
+    WHERE lending_market_name = :market_name 
+      AND supply_symbol = :asset_symbol 
+      AND "timestamp" = :timestamp
+      AND borrow_symbol IS NOT NULL 
+      AND borrow_symbol != ''
+    GROUP BY borrow_symbol, supply_symbol
+    """
+    return run_query(query, params={
+        "timestamp": timestamp,
+        "market_name": market_name,
+        "asset_symbol": asset_symbol
+    })
 
 def get_collateral_distribution(timestamp: int, market_name: str, asset_symbol: str) -> pd.DataFrame:
     """
     Row 2: Collateral distribution backing [ASSET] debt.
     Returns: borrow_symbol, borrow_value, supply_symbol
     """
-    database_url = get_analytics_database_url()
-    try:
-        engine = create_engine(database_url)
-        query = """
-        SELECT borrow_symbol, SUM(borrow_value) as borrow_value, supply_symbol, SUM(supply_value) as supply_value
-        FROM quant__kamino_user_position_split 
-        WHERE lending_market_name = :market_name 
-          AND borrow_symbol = :asset_symbol 
-          AND "timestamp" = :timestamp
-        GROUP BY supply_symbol, borrow_symbol
-        """
-        return pd.read_sql(
-            text(query), 
-            engine, 
-            params={
-                "timestamp": timestamp,
-                "market_name": market_name,
-                "asset_symbol": asset_symbol
-            }
-        )
-    except Exception as e:
-        logging.error("Error fetching collateral distribution for %s in %s: %s", asset_symbol, market_name, str(e))
-        return pd.DataFrame()
-    finally:
-        if "engine" in locals():
-            engine.dispose()
+    query = """
+    SELECT borrow_symbol, SUM(borrow_value) as borrow_value, supply_symbol, SUM(supply_value) as supply_value
+    FROM quant__kamino_user_position_split 
+    WHERE lending_market_name = :market_name 
+      AND borrow_symbol = :asset_symbol 
+      AND "timestamp" = :timestamp
+    GROUP BY supply_symbol, borrow_symbol
+    """
+    return run_query(query, params={
+        "timestamp": timestamp,
+        "market_name": market_name,
+        "asset_symbol": asset_symbol
+    })
 
 def get_leverage_borrowed(timestamp: int, market_name: str, asset_symbol: str, min_value: float) -> pd.DataFrame:
     """
     Table 1: Pairs where [ASSET] is Borrowed
     """
-    database_url = get_analytics_database_url()
-    try:
-        engine = create_engine(database_url)
-        query = """
-        SELECT borrow_symbol, supply_symbol, borrow_value/supply_value AS LTV 
-        FROM ( 
-            SELECT borrow_symbol, SUM(borrow_value) as borrow_value, supply_symbol, SUM(supply_value) as supply_value 
-            FROM quant__kamino_user_position_split 
-            WHERE lending_market_name = :market_name 
-              AND borrow_symbol = :asset_symbol 
-              AND "timestamp" = :timestamp
-            GROUP BY supply_symbol, borrow_symbol 
-        ) AS sub
-        WHERE borrow_value >= :min_value
-        """
-        return pd.read_sql(
-            text(query), 
-            engine, 
-            params={
-                "timestamp": timestamp,
-                "market_name": market_name,
-                "asset_symbol": asset_symbol,
-                "min_value": min_value
-            }
-        )
-    except Exception as e:
-        logging.error("Error fetching leverage borrowed for %s in %s: %s", asset_symbol, market_name, str(e))
-        return pd.DataFrame()
-    finally:
-        if "engine" in locals():
-            engine.dispose()
+    query = """
+    SELECT borrow_symbol, supply_symbol, borrow_value/supply_value AS LTV 
+    FROM ( 
+        SELECT borrow_symbol, SUM(borrow_value) as borrow_value, supply_symbol, SUM(supply_value) as supply_value 
+        FROM quant__kamino_user_position_split 
+        WHERE lending_market_name = :market_name 
+        AND borrow_symbol = :asset_symbol 
+        AND "timestamp" = :timestamp
+        GROUP BY supply_symbol, borrow_symbol 
+    ) AS sub
+    WHERE borrow_value >= :min_value
+    """
+    return run_query(query, params={
+        "timestamp": timestamp,
+        "market_name": market_name,
+        "asset_symbol": asset_symbol,
+        "min_value": min_value
+    })
+
+def get_historic_leverage_where_asset_is_collateral(market_name: str, asset_symbol: str, min_value: float) -> pd.DataFrame:
+    """
+    Historic LTV where [ASSET] is Collateral (supply_symbol = asset).
+    Returns: timestamp, borrow_symbol, supply_symbol, LTV
+    """
+    query = """
+    SELECT "timestamp", borrow_symbol, supply_symbol, borrow_value/supply_value AS LTV
+    FROM (
+        SELECT "timestamp", borrow_symbol, SUM(borrow_value) as borrow_value, supply_symbol, SUM(supply_value) as supply_value
+        FROM quant__kamino_user_position_split
+        WHERE lending_market_name = :market_name AND supply_symbol = :asset_symbol
+        GROUP BY supply_symbol, "timestamp", borrow_symbol
+    ) AS subquery
+    WHERE borrow_value >= :min_value
+    """
+    return run_query(query, params={
+        "market_name": market_name,
+        "asset_symbol": asset_symbol,
+        "min_value": min_value
+    })
+
+def get_historic_leverage_where_asset_is_borrowed(market_name: str, asset_symbol: str, min_value: float) -> pd.DataFrame:
+    """
+    Historic LTV where [ASSET] is Borrowed (borrow_symbol = asset).
+    Returns: timestamp, borrow_symbol, supply_symbol, LTV
+    """
+    query = """
+    SELECT "timestamp", borrow_symbol, supply_symbol, borrow_value/supply_value AS LTV
+    FROM (
+        SELECT "timestamp", borrow_symbol, SUM(borrow_value) as borrow_value, supply_symbol, SUM(supply_value) as supply_value
+        FROM quant__kamino_user_position_split
+        WHERE lending_market_name = :market_name AND borrow_symbol = :asset_symbol
+        GROUP BY supply_symbol, "timestamp", borrow_symbol
+    ) AS subquery
+    WHERE borrow_value >= :min_value
+    """
+    return run_query(query, params={
+        "market_name": market_name,
+        "asset_symbol": asset_symbol,
+        "min_value": min_value
+    })
 
 def get_leverage_collateral(timestamp: int, market_name: str, asset_symbol: str, min_value: float) -> pd.DataFrame:
     """
     Table 2: Pairs where [ASSET] is Collateral
     """
-    database_url = get_analytics_database_url()
-    try:
-        engine = create_engine(database_url)
-        query = """
-        SELECT borrow_symbol, supply_symbol, borrow_value/supply_value AS LTV 
-        FROM ( 
-            SELECT supply_symbol, SUM(supply_value) as supply_value, borrow_symbol, SUM(borrow_value) as borrow_value 
-            FROM quant__kamino_user_position_split 
-            WHERE lending_market_name = :market_name 
-              AND supply_symbol = :asset_symbol 
-              AND "timestamp" = :timestamp
-            GROUP BY supply_symbol, borrow_symbol 
-        ) AS sub
-        WHERE borrow_value >= :min_value
-        """
-        return pd.read_sql(
-            text(query), 
-            engine, 
-            params={
-                "timestamp": timestamp,
-                "market_name": market_name,
-                "asset_symbol": asset_symbol,
-                "min_value": min_value
-            }
-        )
-    except Exception as e:
-        logging.error("Error fetching leverage collateral for %s in %s: %s", asset_symbol, market_name, str(e))
-        return pd.DataFrame()
-    finally:
-        if "engine" in locals():
-            engine.dispose()
+    query = """
+    SELECT borrow_symbol, supply_symbol, borrow_value/supply_value AS LTV 
+    FROM ( 
+        SELECT supply_symbol, SUM(supply_value) as supply_value, borrow_symbol, SUM(borrow_value) as borrow_value 
+        FROM quant__kamino_user_position_split 
+        WHERE lending_market_name = :market_name 
+          AND supply_symbol = :asset_symbol 
+          AND "timestamp" = :timestamp
+        GROUP BY supply_symbol, borrow_symbol 
+    ) AS sub
+    WHERE borrow_value >= :min_value
+    """
+    return run_query(query, params={
+        "timestamp": timestamp,
+        "market_name": market_name,
+        "asset_symbol": asset_symbol,
+        "min_value": min_value
+    })
+
+def get_liquidation_risk_data(timestamp: int, market_name: str, asset_symbol: str) -> pd.DataFrame:
+    """
+    Get data for liquidation risk analysis.
+    """
+    query = """
+    SELECT borrow_symbol, borrow_value, supply_symbol, supply_value 
+    , CASE WHEN supply_value = 0 THEN 0 ELSE borrow_value/supply_value END AS LTV 
+    , CASE WHEN borrow_factor = 0 THEN 0 ELSE supply_lt/borrow_factor END AS LLTV 
+    , CASE 
+        WHEN supply_value = 0 OR borrow_factor = 0 OR supply_lt = 0 THEN NULL 
+        ELSE 1-((borrow_value/supply_value)/(supply_lt/borrow_factor)) 
+      END AS collateral_liquidation_price_shock 
+    , CASE 
+        WHEN supply_value = 0 OR borrow_value = 0 OR borrow_factor = 0 THEN NULL 
+        ELSE ((supply_lt/borrow_factor)/(borrow_value/supply_value))-1 
+      END AS borrow_liquidation_price_shock 
+    FROM quant__kamino_user_position_split 
+    WHERE lending_market_name = :market_name 
+      AND "timestamp" = :timestamp 
+      AND borrow_factor > 0 
+      AND (borrow_symbol = :asset_symbol OR supply_symbol = :asset_symbol)
+    """
+    return run_query(query, params={
+        "timestamp": timestamp,
+        "market_name": market_name,
+        "asset_symbol": asset_symbol
+    })
