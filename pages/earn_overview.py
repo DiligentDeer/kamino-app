@@ -25,9 +25,16 @@ def earn_overview():
             + vault_id
             + "/allocation-transactions"
         )
-        r = requests.get(url, timeout=10)
-        r.raise_for_status()
-        return r.json()
+        last_err = None
+        for attempt in range(3):
+            try:
+                r = requests.get(url, timeout=(10, 60))
+                r.raise_for_status()
+                return r.json()
+            except requests.RequestException as e:
+                last_err = e
+        st.warning(f"Failed to fetch allocation transactions after 3 attempts: {last_err}")
+        return []
 
     @st.cache_data(ttl=600, show_spinner=False)
     def fetch_metrics_history(vault_id: str, start: str, end: str):
@@ -40,9 +47,16 @@ def earn_overview():
             + "&end="
             + end
         )
-        r = requests.get(url, timeout=10)
-        r.raise_for_status()
-        return r.json()
+        last_err = None
+        for attempt in range(3):
+            try:
+                r = requests.get(url, timeout=(10, 60))
+                r.raise_for_status()
+                return r.json()
+            except requests.RequestException as e:
+                last_err = e
+        st.warning(f"Failed to fetch metrics history after 3 attempts: {last_err}")
+        return []
 
     st.divider()
 

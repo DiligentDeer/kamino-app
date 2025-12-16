@@ -34,7 +34,11 @@ def get_engine():
     global _engine
     if _engine is None:
         db_url = get_db_url()
-        _engine = create_engine(db_url)
+        _engine = create_engine(
+            db_url,
+            pool_pre_ping=True,  # Verify connection before usage
+            pool_recycle=1800,   # Recycle connections after 30 minutes
+        )
     return _engine
 
 def run_query(query: str, params: Optional[dict] = None) -> pd.DataFrame:
@@ -94,7 +98,7 @@ def get_pyusd_main_positions(timestamp: int) -> pd.DataFrame:
 
 def get_asset_positions(timestamp: int, market_name: str, asset_symbol: str) -> pd.DataFrame:
     query = """
-    SELECT obligation_id, supply_symbol, supply_value, borrow_symbol, borrow_value 
+    SELECT obligation_id, owner, supply_symbol, supply_value, borrow_symbol, borrow_value 
     FROM quant__kamino_user_position_split 
     WHERE lending_market_name = :market_name 
       AND (supply_symbol = :asset_symbol OR borrow_symbol = :asset_symbol) 

@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 from src.database import get_max_position_timestamp, get_liquidation_risk_data
 
-# @st.cache_data(ttl=300)
+@st.cache_data(ttl=300)
 def load_data(timestamp, market, asset):
     return get_liquidation_risk_data(timestamp, market, asset)
 
@@ -18,13 +18,20 @@ def liquidation_risk():
         asset = st.selectbox("Filter Asset", ["PYUSD", "USDC"])
 
     # Load Data
-    with st.spinner("Loading data..."):
-        ts = get_max_position_timestamp()
-        if ts is None:
-            st.error("Could not fetch timestamp.")
-            return
-        
-        df = load_data(ts, market, asset)
+    with st.container(border=True):
+        col1, col2 = st.columns([0.8, 0.2])
+        with col2:
+            if st.button("Clear Cache & Refresh", key="refresh_liquidation_risk"):
+                st.cache_data.clear()
+                st.rerun()
+
+        with st.spinner("Loading data..."):
+            ts = get_max_position_timestamp()
+            if ts is None:
+                st.error("Could not fetch timestamp.")
+                return
+            
+            df = load_data(ts, market, asset)
 
     if df.empty:
         st.warning("No data available for the selected parameters.")
@@ -43,6 +50,8 @@ def liquidation_risk():
         default=supply_symbols[:1] if supply_symbols else None
     )
 
+    adjust_supply = st.toggle("Adjust Collateral Value by Shock", value=False, help="If enabled, Collateral Value is reduced by the shock percentage (Supply Value * (1 - Shock)).")
+
     if selected_supply:
         # Filter
         df_supply = df[df['supply_symbol'].isin(selected_supply)].copy()
@@ -53,6 +62,10 @@ def liquidation_risk():
         # Round shock to 4 decimal places for aggregation (0.01% precision) to reduce points and aggregate
         df_supply['shock_rounded'] = df_supply['collateral_liquidation_price_shock'].round(4)
         
+        # Apply adjustment if toggled
+        if adjust_supply:
+            df_supply['supply_value'] = df_supply['supply_value'] * (1 - df_supply['shock_rounded'])
+
         # Aggregate by shock bucket
         df_agg_supply = df_supply.groupby('shock_rounded')[['supply_value', 'borrow_value']].sum().sort_index()
         
@@ -111,6 +124,8 @@ def liquidation_risk():
         default=borrow_symbols[:1] if borrow_symbols else None
     )
 
+    adjust_borrow = st.toggle("Adjust Debt Value by Shock", value=False, help="If enabled, Debt Value is increased by the shock percentage (Borrow Value * (1 + Shock)).")
+
     if selected_borrow:
         # Filter
         df_borrow = df[df['borrow_symbol'].isin(selected_borrow)].copy()
@@ -121,6 +136,10 @@ def liquidation_risk():
         # Round shock to 4 decimal places for aggregation
         df_borrow['shock_rounded'] = df_borrow['borrow_liquidation_price_shock'].round(4)
         
+        # Apply adjustment if toggled
+        if adjust_borrow:
+            df_borrow['borrow_value'] = df_borrow['borrow_value'] * (1 + df_borrow['shock_rounded'])
+
         # Aggregate by shock bucket
         df_agg_borrow = df_borrow.groupby('shock_rounded')[['supply_value', 'borrow_value']].sum().sort_index()
         

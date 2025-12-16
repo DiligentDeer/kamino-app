@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from datetime import datetime
+from pandas.api.types import is_numeric_dtype, is_object_dtype
 from src.database import (
     get_max_position_timestamp, 
     get_asset_positions, 
@@ -8,9 +10,58 @@ from src.database import (
     get_collateral_distribution
 )
 
+def filter_dataframe(df: pd.DataFrame, key_suffix: str) -> pd.DataFrame:
+    """
+    Adds a UI on top of a dataframe to let viewers filter columns
+    """
+    modify = st.toggle("Filter Data Table", key=f"toggle_filter_{key_suffix}")
+    if not modify:
+        return df
+
+    df = df.copy()
+
+    modification_container = st.container()
+
+    with modification_container:
+        to_filter_columns = st.multiselect("Filter dataframe on", df.columns, key=f"multiselect_{key_suffix}")
+        for column in to_filter_columns:
+            left, right = st.columns((1, 20))
+            # Treat columns with < 20 unique values as categorical
+            if is_object_dtype(df[column]) and df[column].nunique() < 50:
+                user_cat_input = right.multiselect(
+                    f"Values for {column}",
+                    sorted(list(df[column].unique())),
+                    default=[],
+                    placeholder="Select values to filter (empty = all)",
+                    key=f"filter_{column}_{key_suffix}"
+                )
+                if user_cat_input:
+                    df = df[df[column].isin(user_cat_input)]
+            elif is_numeric_dtype(df[column]):
+                _min = float(df[column].min())
+                _max = float(df[column].max())
+                step = (_max - _min) / 100
+                user_num_input = right.slider(
+                    f"Values for {column}",
+                    min_value=_min,
+                    max_value=_max,
+                    value=(_min, _max),
+                    step=step,
+                    key=f"filter_{column}_{key_suffix}"
+                )
+                df = df[df[column].between(*user_num_input)]
+            else:
+                user_text_input = right.text_input(
+                    f"Substring or regex in {column}",
+                    key=f"filter_{column}_{key_suffix}"
+                )
+                if user_text_input:
+                    df = df[df[column].astype(str).str.contains(user_text_input, case=False, na=False)]
+
+    return df
+
 @st.cache_data(ttl=300)
-def load_market_data(market_name, asset_symbol):
-    max_ts = get_max_position_timestamp()
+def load_market_data(market_name, asset_symbol, max_ts):
     if max_ts is None:
         return None, pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     
@@ -23,10 +74,22 @@ def load_market_data(market_name, asset_symbol):
 def render_market_section(market_name, asset_symbol, toggle_key):
     if st.toggle(f"Show {market_name} Market Data", key=toggle_key):
         with st.container(border=True):
+            col1, col2 = st.columns([0.8, 0.2])
+            with col2:
+                if st.button("Clear Cache & Refresh", key=f"refresh_{market_name}_{asset_symbol}"):
+                    st.cache_data.clear()
+                    st.rerun()
+
             with st.spinner(f"Loading {market_name} Market data..."):
-                ts, df_pos, df_debt, df_collat = load_market_data(market_name, asset_symbol)
+                # Always fetch the latest timestamp first to ensure data freshness
+                current_ts = get_max_position_timestamp()
+                ts, df_pos, df_debt, df_collat = load_market_data(market_name, asset_symbol, current_ts)
             
             if ts:
+                # Convert timestamp to readable format
+                ts_dt = datetime.fromtimestamp(ts)
+                st.caption(f"Data Timestamp: {ts_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+
                 # Row 1: Debt distribution backed by [ASSET] collateral
                 row1_query = f"""
                 SELECT supply_symbol, SUM(supply_value) as supply_value, borrow_symbol, SUM(borrow_value) as borrow_value
@@ -131,6 +194,17 @@ def render_market_section(market_name, asset_symbol, toggle_key):
                 st.divider()
 
             if not df_pos.empty:
-                st.dataframe(df_pos, use_container_width=True)
+                df_filtered = filter_dataframe(df_pos, key_suffix=f"{market_name}_{asset_symbol}")
+                st.dataframe(
+                    df_filtered.style.format({
+                        "supply_value": "{:,.2f}",
+                        "borrow_value": "{:,.2f}"
+                    }),
+                    column_config={
+                        "owner": st.column_config.TextColumn("Owner Address"),
+                        "obligation_id": st.column_config.TextColumn("Obligation ID"),
+                    },
+                    use_container_width=True
+                )
             else:
                 st.info(f"No positions found for {market_name} Market.")
