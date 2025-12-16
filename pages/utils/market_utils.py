@@ -263,6 +263,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
 
         st.divider()
 
+        # Supply & Borrow Over Time and Cap Utilization Over Time
         c_left, c_right = st.columns(2)
         with c_left:
             st.subheader("Supply & Borrow Over Time", help="Smoothed with 3-period rolling median")
@@ -290,6 +291,69 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
             fig_cu.add_trace(go.Scatter(x=cdf["timestamp"], y=cdf["borrow_cap_util_sm"], name="Borrow Cap Utilization", mode="lines"))
             fig_cu.update_layout(xaxis_title="Time", yaxis_title="Utilization")
             st.plotly_chart(fig_cu, use_container_width=True)
+
+        st.divider()
+
+        # Daily Supply & Borrow Flows
+        f_left, f_right = st.columns(2)
+        
+        with f_left:
+            st.subheader("Daily Supply Flow (Estimated)", help="Net daily change in Total Supply")
+            
+            # Resample to daily
+            daily_supply = df.set_index("timestamp")["totalSupply"].copy()
+            daily_supply = pd.to_numeric(daily_supply, errors="coerce").resample("D").last()
+            
+            flow_supply = daily_supply.diff().reset_index()
+            flow_supply.columns = ["Date", "Net Flow"]
+            flow_supply = flow_supply.dropna()
+            
+            flow_supply["Type"] = flow_supply["Net Flow"].apply(
+                lambda x: "Net Inflow" if x >= 0 else "Net Outflow"
+            )
+            
+            fig_fs = px.bar(
+                flow_supply,
+                x="Date",
+                y="Net Flow",
+                color="Type",
+                color_discrete_map={
+                    "Net Inflow": "#00CC96",  # Green
+                    "Net Outflow": "#EF553B"  # Red
+                },
+                labels={"Net Flow": "Change in Supply ($)", "Date": "Date"}
+            )
+            fig_fs.update_layout(showlegend=True)
+            st.plotly_chart(fig_fs, use_container_width=True)
+
+        with f_right:
+            st.subheader("Daily Borrow Flow (Estimated)", help="Net daily change in Total Borrows")
+            
+            # Resample to daily
+            daily_borrow = df.set_index("timestamp")["totalBorrows"].copy()
+            daily_borrow = pd.to_numeric(daily_borrow, errors="coerce").resample("D").last()
+            
+            flow_borrow = daily_borrow.diff().reset_index()
+            flow_borrow.columns = ["Date", "Net Flow"]
+            flow_borrow = flow_borrow.dropna()
+            
+            flow_borrow["Type"] = flow_borrow["Net Flow"].apply(
+                lambda x: "Net New Borrow" if x >= 0 else "Net Repayment"
+            )
+            
+            fig_fb = px.bar(
+                flow_borrow,
+                x="Date",
+                y="Net Flow",
+                color="Type",
+                color_discrete_map={
+                    "Net New Borrow": "#00CC96",  # Green
+                    "Net Repayment": "#EF553B"  # Red
+                },
+                labels={"Net Flow": "Change in Borrows ($)", "Date": "Date"}
+            )
+            fig_fb.update_layout(showlegend=True)
+            st.plotly_chart(fig_fb, use_container_width=True)
 
         st.divider()
 

@@ -202,10 +202,46 @@ def earn_overview():
 
             st.divider()
 
-            st.subheader("TVL Over Time")
-            tvl_df = mdf[["timestamp", "tvl"]].copy().sort_values("timestamp")
-            fig_tvl = px.area(tvl_df, x="timestamp", y="tvl", labels={"tvl": "TVL", "timestamp": "Time"})
-            st.plotly_chart(fig_tvl, use_container_width=True)
+            # Create side-by-side columns for TVL and Net Flow charts
+            col_tvl, col_flow = st.columns(2)
+
+            with col_tvl:
+                st.subheader("TVL Over Time")
+                tvl_df = mdf[["timestamp", "tvl"]].copy().sort_values("timestamp")
+                fig_tvl = px.area(tvl_df, x="timestamp", y="tvl", labels={"tvl": "TVL", "timestamp": "Time"})
+                st.plotly_chart(fig_tvl, use_container_width=True)
+
+            with col_flow:
+                st.subheader(
+                    "Daily Net Flow (Estimated)",
+                    help="This chart shows the day-over-day change in TVL based on the same data source. It approximates net deposits and withdrawals but also includes accrued yield and price fluctuations."
+                )
+                # Resample to daily to get cleaner bars
+                # Use 'last' to get the EOD TVL, then diff to get the change
+                daily_tvl = tvl_df.set_index("timestamp")["tvl"].resample("D").last()
+                daily_flow = daily_tvl.diff().reset_index()
+                daily_flow.columns = ["Date", "Net Flow"]
+                daily_flow = daily_flow.dropna()
+
+                # Determine color based on positive/negative flow
+                daily_flow["Type"] = daily_flow["Net Flow"].apply(
+                    lambda x: "Net Deposit" if x >= 0 else "Net Withdrawal"
+                )
+
+                fig_flow = px.bar(
+                    daily_flow,
+                    x="Date",
+                    y="Net Flow",
+                    color="Type",
+                    color_discrete_map={
+                        "Net Deposit": "#00CC96",  # Green
+                        "Net Withdrawal": "#EF553B"  # Red
+                    },
+                    # title="Daily Change in TVL (Proxy for Net Flows)", # Title removed as per subheader context
+                    labels={"Net Flow": "Change in TVL ($)", "Date": "Date"}
+                )
+                fig_flow.update_layout(showlegend=True)
+                st.plotly_chart(fig_flow, use_container_width=True)
 
             st.divider()
 
