@@ -2,27 +2,19 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta, timezone
 from pages.utils.market_utils import fetch_market_history
+from pages.mappings.markets import MARKET_CONFIGS
 
-# Constants for Markets
+# Construct MARKETS list from configuration
 MARKETS = [
     {
-        "name": "Main Market",
-        "lending_market": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
-        "reserve": "2gc9Dm1eB6UgVYFBUN9bWks6Kes9PbWSaPaa9DqyvEiN",
-        "page_title": "Main Market"
-    },
-    {
-        "name": "JLP Market",
-        "lending_market": "DxXdAyU3kCjnyggvHmY5nAwg5cRbbmdyX3npfDMjjMek",
-        "reserve": "FswUCVjvfAuzHCgPDF95eLKscGsLHyJmD6hzkhq26CLe",
-        "page_title": "JLP Market"
-    },
-    {
-        "name": "Maple Market",
-        "lending_market": "6WEGfej9B9wjxRs6t4BYpb9iCXd8CpTpJ8fVSNzHCC5y",
-        "reserve": "92qeAka3ZzCGPfJriDXrE7tiNqfATVCAM6ZjjctR3TrS",
-        "page_title": "Maple Market"
+        "name": cfg["name"],
+        "lending_market": cfg["lending_market"],
+        "reserve": cfg["reserves"]["PYUSD"],
+        "page_title": cfg["page_title"],
+        "page_path": cfg["page_path"]
     }
+    for cfg in MARKET_CONFIGS.values()
+    if "PYUSD" in cfg["reserves"]
 ]
 
 def process_market_data(history):
@@ -142,7 +134,7 @@ def markets_overview():
                 st.subheader(market["name"])
             with c_btn:
                 if st.button("View Details", key=f"btn_{market['name']}"):
-                    st.switch_page(market["page_title"])
+                    st.switch_page(st.Page(market["page_path"], title=market["page_title"]))
 
             # Fetch Data
             data = fetch_market_history(market["lending_market"], market["reserve"], start_str, end_str)
