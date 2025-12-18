@@ -18,7 +18,14 @@ def load_leverage_data(max_ts, market, asset, debt_threshold):
     return df_borrowed, df_collateral, df_hist_collateral, df_hist_borrowed
 
 def leverage_page():
-    st.title("Leverage Analysis")
+    c_header, c_refresh = st.columns([0.85, 0.15])
+    with c_header:
+        st.title("Leverage Analysis", help="Examines the leverage usage for a specific asset. High leverage indicates higher sensitivity to price changes.")
+    with c_refresh:
+        if st.button("Refresh", key="refresh_leverage"):
+            st.cache_data.clear()
+            st.rerun()
+            
     st.write("Analyze leverage positions for specific markets and assets.")
 
     # Input Section
@@ -30,7 +37,7 @@ def leverage_page():
                 "Select Market",
                 options=["Main", "JLP", "Maple"],
                 index=0,
-                help="Select the lending market to analyze"
+                help="Choose the lending market environment (e.g., Main, JLP, Maple) to analyze."
             )
             
         with c2:
@@ -38,7 +45,7 @@ def leverage_page():
                 "Select Asset",
                 options=["PYUSD", "USDC"],
                 index=0,
-                help="Select the asset to analyze"
+                help="Select the specific asset (e.g., PYUSD, USDC) to filter the leverage analysis."
             )
             
         with c3:
@@ -47,17 +54,11 @@ def leverage_page():
                 min_value=0,
                 value=100000,
                 step=1000,
-                help="Filter positions with debt value greater than this threshold"
+                help="Filter out small positions. Only positions with debt exceeding this value are included."
             )
 
     # Data Loading
     with st.container(border=True):
-        col1, col2 = st.columns([0.8, 0.2])
-        with col2:
-            if st.button("Clear Cache & Refresh", key="refresh_leverage"):
-                st.cache_data.clear()
-                st.rerun()
-
         with st.spinner("Loading leverage data..."):
             max_ts = get_max_position_timestamp()
             

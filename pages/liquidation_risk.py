@@ -10,30 +10,29 @@ def load_data(timestamp, market, asset):
     return get_liquidation_risk_data(timestamp, market, asset)
 
 def liquidation_risk():
-    st.header("Liquidation Risk")
+    c_header, c_refresh = st.columns([0.85, 0.15])
+    with c_header:
+        st.header("Liquidation Risk", help="Analyzes the solvency of positions under price shock scenarios. Helps identify potential liquidations if asset prices move significantly.")
+    with c_refresh:
+        if st.button("Refresh", key="refresh_liquidation_risk"):
+            st.cache_data.clear()
+            st.rerun()
 
     # Top Level Filters
     c1, c2 = st.columns(2)
     with c1:
-        market = st.selectbox("Select Market", ["Main", "JLP", "Maple"])
+        market = st.selectbox("Select Market", ["Main", "JLP", "Maple"], help="Choose the lending market environment (e.g., Main, JLP, Maple) to analyze.")
     with c2:
-        asset = st.selectbox("Filter Asset", ["PYUSD", "USDC"])
+        asset = st.selectbox("Filter Asset", ["PYUSD", "USDC"], help="Select the specific asset (e.g., PYUSD, USDC) to filter the risk analysis.")
 
     # Load Data
-    with st.container(border=True):
-        col1, col2 = st.columns([0.8, 0.2])
-        with col2:
-            if st.button("Clear Cache & Refresh", key="refresh_liquidation_risk"):
-                st.cache_data.clear()
-                st.rerun()
-
-        with st.spinner("Loading data..."):
-            ts = get_max_position_timestamp()
-            if ts is None:
-                st.error("Could not fetch timestamp.")
-                return
-            
-            df = load_data(ts, market, asset)
+    with st.spinner("Loading data..."):
+        ts = get_max_position_timestamp()
+        if ts is None:
+            st.error("Could not fetch timestamp.")
+            return
+        
+        df = load_data(ts, market, asset)
 
     if df.empty:
         st.warning("No data available for the selected parameters.")
@@ -193,6 +192,7 @@ def liquidation_risk():
     
     with st.expander("Historical Liquidation Data (PYUSD)", expanded=False):
         st.caption("Data source: Sentora DeFi Risk API")
+        st.markdown("Shows the history of cumulative liquidation values for PYUSD across different markets.", help="Data is fetched from the Sentora DeFi Risk API. Click 'Load Historical Data' to view the chart and table.")
         
         # User requested to query only if expanded. 
         # In Streamlit, we use a button to ensure data is only fetched on user request.

@@ -12,7 +12,13 @@ def load_position_details(timestamp, market, asset):
     return get_position_details(timestamp, market, asset)
 
 def position_at_risk():
-    st.header("Position at Risk")
+    c_header, c_refresh = st.columns([0.85, 0.15])
+    with c_header:
+        st.header("Position at Risk")
+    with c_refresh:
+        if st.button("Refresh", key="refresh_pos_risk"):
+            st.cache_data.clear()
+            st.rerun()
 
     # Top Level Filters
     c1, c2 = st.columns(2)
@@ -22,16 +28,9 @@ def position_at_risk():
         asset = st.selectbox("Filter Asset", ["PYUSD", "USDC"], key="pos_risk_asset")
 
     # Load Data
-    with st.container(border=True):
-        col1, col2 = st.columns([0.8, 0.2])
-        with col2:
-            if st.button("Clear Cache & Refresh", key="refresh_pos_risk"):
-                st.cache_data.clear()
-                st.rerun()
-
-        with st.spinner("Loading data..."):
-            # Threshold is hardcoded to 1.1 as per request
-            df = load_data(market, asset, threshold=1.1)
+    with st.spinner("Loading data..."):
+        # Threshold is hardcoded to 1.1 as per request
+        df = load_data(market, asset, threshold=1.1)
 
     if df.empty:
         st.warning("No data available for the selected parameters.")
@@ -158,11 +157,9 @@ def position_at_risk():
 
     st.divider()
 
-    # Detailed Position Table
-    st.subheader("Detailed Position Data")
-    st.markdown("Full list of positions involving the selected asset, sorted by Health Factor (Lowest First).")
-
-    with st.spinner("Loading position details..."):
+    # Detailed Position Data Table
+    st.subheader("Detailed Position Data", help="A table listing individual positions with Health Factor <= 1.1. Includes details like supply/borrow amounts and current LTV.")
+    with st.spinner("Loading detailed position data..."):
         # Use the latest timestamp from the main dataframe
         latest_ts = int(latest_df['timestamp'].timestamp())
         df_details = load_position_details(latest_ts, market, asset)

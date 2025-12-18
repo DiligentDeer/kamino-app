@@ -90,7 +90,8 @@ pg = st.navigation(
             jlp_market_page,
             maple_market_page,
         ],
-        "Assets": [pyusd_asset_page, usdc_asset_page, leverage_page_obj, liquidation_risk_page, position_at_risk_page],
+        "Assets": [pyusd_asset_page, usdc_asset_page],
+        "Risk": [leverage_page_obj, liquidation_risk_page, position_at_risk_page],
         "Positions": [user_positions_page],
     }
 )
