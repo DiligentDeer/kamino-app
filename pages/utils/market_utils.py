@@ -33,7 +33,7 @@ def fetch_market_history(market: str, reserve: str, start: str, end: str):
     return {"history": []}
 
 def render_market_details(market_name: str, lending_market: str, reserve_address: str, asset_name: str = "PYUSD"):
-    st.title(f"{asset_name}: {market_name}")
+    st.title(f"{asset_name}: {market_name}", help=f"Deep dive into the {asset_name} reserve within the {market_name}. Includes supply/borrow metrics, utilization rates, and historical trends.")
     NOW = datetime.now(timezone.utc)
     START = NOW - timedelta(days=31)
     end_str = NOW.isoformat(timespec="milliseconds").replace("+00:00", "Z")
@@ -139,6 +139,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
                 f"{asset_name} Supply",
                 "-" if pd.isna(curr_supply) else f"{float(curr_supply):,.0f}",
                 help=(
+                    "Current Total Supply of the asset in this market. "
                     "Deposits TVL: "
                     + (
                         fmt_compact(latest.iloc[0]["depositTvl"]) if pd.notna(latest.iloc[0]["depositTvl"]) else "-"
@@ -156,7 +157,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         cap_7d = val_at(7, "reserveDepositLimit")
         cap_30d = val_at(30, "reserveDepositLimit")
         with c2:
-            st.metric("Supply Cap", "" if pd.isna(curr_supply_cap) else f"{float(curr_supply_cap):,.0f}")
+            st.metric("Supply Cap", "" if pd.isna(curr_supply_cap) else f"{float(curr_supply_cap):,.0f}", help="Maximum amount of the asset that can be supplied to this market.")
             render_delta_bubbles([
                 ("1D", None if cap_1d is None else (float(curr_supply_cap) - float(cap_1d))),
                 ("7D", None if cap_7d is None else (float(curr_supply_cap) - float(cap_7d))),
@@ -170,7 +171,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         su_7d = val_at(7, "supply_util")
         su_30d = val_at(30, "supply_util")
         with c3:
-            st.metric("Supply Cap Utilization", "-" if curr_supply_util is None else f"{curr_supply_util:.2%}")
+            st.metric("Supply Cap Utilization", "-" if curr_supply_util is None else f"{curr_supply_util:.2%}", help="Percentage of the Supply Cap currently filled (Total Supply / Supply Cap).")
             render_delta_bubbles([
                 ("1D", None if su_1d is None else (curr_supply_util - su_1d)),
                 ("7D", None if su_7d is None else (curr_supply_util - su_7d)),
@@ -185,7 +186,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         mu_7d = val_at(7, "market_util")
         mu_30d = val_at(30, "market_util")
         with c4:
-            st.metric("Market Utilization %", "-" if curr_market_util is None else f"{curr_market_util:.2%}")
+            st.metric("Market Utilization %", "-" if curr_market_util is None else f"{curr_market_util:.2%}", help="Percentage of supplied assets that are currently borrowed (Total Borrows / Total Supply).")
             render_delta_bubbles([
                 ("1D", None if mu_1d is None else (curr_market_util - mu_1d)),
                 ("7D", None if mu_7d is None else (curr_market_util - mu_7d)),
@@ -202,6 +203,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
                 f"{asset_name} Borrow",
                 "-" if pd.isna(curr_borrow) else f"{float(curr_borrow):,.0f}",
                 help=(
+                    "Current Total Borrows of the asset in this market. "
                     "Borrows TVL: "
                     + (
                         fmt_compact(latest.iloc[0]["borrowTvl"]) if pd.notna(latest.iloc[0]["borrowTvl"]) else "-"
@@ -219,7 +221,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         bc_7d = val_at(7, "reserveBorrowLimit")
         bc_30d = val_at(30, "reserveBorrowLimit")
         with d2:
-            st.metric("Borrow Cap", "" if pd.isna(curr_borrow_cap) else f"{float(curr_borrow_cap):,.0f}")
+            st.metric("Borrow Cap", "" if pd.isna(curr_borrow_cap) else f"{float(curr_borrow_cap):,.0f}", help="Maximum amount of the asset that can be borrowed from this market.")
             render_delta_bubbles([
                 ("1D", None if bc_1d is None else (float(curr_borrow_cap) - float(bc_1d))),
                 ("7D", None if bc_7d is None else (float(curr_borrow_cap) - float(bc_7d))),
@@ -233,7 +235,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         bu_7d = val_at(7, "borrow_cap_util")
         bu_30d = val_at(30, "borrow_cap_util")
         with d3:
-            st.metric("Borrow Cap Utilization", "-" if curr_borrow_util is None else f"{curr_borrow_util:.2%}")
+            st.metric("Borrow Cap Utilization", "-" if curr_borrow_util is None else f"{curr_borrow_util:.2%}", help="Percentage of the Borrow Cap currently filled (Total Borrows / Borrow Cap).")
             render_delta_bubbles([
                 ("1D", None if bu_1d is None else (curr_borrow_util - bu_1d)),
                 ("7D", None if bu_7d is None else (curr_borrow_util - bu_7d)),
@@ -249,6 +251,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
                 "Borrow Rate %",
                 "-" if pd.isna(rate) else f"{float(rate):.2%}",
                 help=(
+                    "Current annual interest rate for borrowers. "
                     "Supply Interest APY: "
                     + (
                         f"{float(latest.iloc[0]['supplyInterestAPY']):.2%}" if pd.notna(latest.iloc[0]["supplyInterestAPY"]) else "-"
@@ -266,7 +269,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         # Supply & Borrow Over Time and Cap Utilization Over Time
         c_left, c_right = st.columns(2)
         with c_left:
-            st.subheader("Supply & Borrow Over Time", help="Smoothed with 3-period rolling median")
+            st.subheader("Supply & Borrow Over Time", help="Historical trend of Total Supply and Total Borrows. Smoothed with 3-period rolling median to reduce noise.")
             use_log_scale = st.toggle("Use log scale", value=True, key=f"log_toggle_{market_name}")
             sb = df[["timestamp", "totalSupply", "totalBorrows"]].copy().sort_values("timestamp")
             sb["sup_sm"] = pd.to_numeric(sb["totalSupply"], errors="coerce").rolling(window=3, min_periods=1).median()
@@ -280,7 +283,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
             st.plotly_chart(fig_sb, use_container_width=True)
 
         with c_right:
-            st.subheader("Cap Utilization Over Time", help="Smoothed with 3-period rolling median")
+            st.subheader("Cap Utilization Over Time", help="Historical trend of Supply and Borrow Cap utilization. Shows how close the market is to its limits. Smoothed with 3-period rolling median.")
             cdf = df[["timestamp", "totalSupply", "totalBorrows", "reserveDepositLimit", "reserveBorrowLimit"]].copy().sort_values("timestamp")
             cdf["supply_cap_util"] = pd.to_numeric(cdf["totalSupply"], errors="coerce") / pd.to_numeric(cdf["reserveDepositLimit"], errors="coerce")
             cdf["borrow_cap_util"] = pd.to_numeric(cdf["totalBorrows"], errors="coerce") / pd.to_numeric(cdf["reserveBorrowLimit"], errors="coerce")
@@ -298,7 +301,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         f_left, f_right = st.columns(2)
         
         with f_left:
-            st.subheader("Daily Supply Flow (Estimated)", help="Net daily change in Total Supply")
+            st.subheader("Daily Supply Flow (Estimated)", help="Net daily change in Total Supply. Positive values indicate net deposits/inflows, negative values indicate net withdrawals/outflows.")
             
             # Resample to daily
             daily_supply = df.set_index("timestamp")["totalSupply"].copy()
@@ -327,7 +330,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
             st.plotly_chart(fig_fs, use_container_width=True)
 
         with f_right:
-            st.subheader("Daily Borrow Flow (Estimated)", help="Net daily change in Total Borrows")
+            st.subheader("Daily Borrow Flow (Estimated)", help="Net daily change in Total Borrows. Positive values indicate net new borrowing, negative values indicate net repayments.")
             
             # Resample to daily
             daily_borrow = df.set_index("timestamp")["totalBorrows"].copy()
@@ -359,7 +362,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
 
         c3, c4 = st.columns(2)
         with c3:
-            st.subheader("Utilization Over Time", help="Smoothed with 3-period rolling median")
+            st.subheader("Utilization Over Time", help="Historical trend of Market Utilization (Total Borrows / Total Supply). Smoothed with 3-period rolling median.")
             udf = df[["timestamp", "totalBorrows", "totalSupply"]].copy().sort_values("timestamp")
             udf["utilization"] = pd.to_numeric(udf["totalBorrows"], errors="coerce") / pd.to_numeric(udf["totalSupply"], errors="coerce")
             udf["util_sm"] = udf["utilization"].rolling(window=3, min_periods=1).median()
@@ -369,7 +372,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
             st.plotly_chart(fig_u, use_container_width=True)
 
         with c4:
-            st.subheader("Rates Over Time", help="Smoothed with 3-period rolling median")
+            st.subheader("Rates Over Time", help="Historical trend of Borrow and Supply APY. Smoothed with 3-period rolling median.")
             rdf = df[["timestamp", "borrowInterestAPY", "supplyInterestAPY"]].copy().sort_values("timestamp")
             rdf["borrow_sm"] = pd.to_numeric(rdf["borrowInterestAPY"], errors="coerce").rolling(window=3, min_periods=1).median() * 100.0
             rdf["supply_sm"] = pd.to_numeric(rdf["supplyInterestAPY"], errors="coerce").rolling(window=3, min_periods=1).median() * 100.0
@@ -381,7 +384,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
 
         st.divider()
 
-        st.subheader("IRM Changes Comparison", help="Shows the past 2 latest changes in the 30 days windows compared to the current IRM")
+        st.subheader("IRM Changes Comparison", help="Compares the Interest Rate Model (IRM) parameters over time. Shows the past 2 latest changes in the 30 days window compared to the current IRM configuration.")
         curves = df[["timestamp", "borrowCurve"]].copy().sort_values("timestamp")
         def canon(x):
             if x is None:

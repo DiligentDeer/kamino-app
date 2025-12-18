@@ -8,7 +8,7 @@ from pages.utils.ui_components import render_delta_bubbles
 
 
 def earn_overview():
-    st.title("Earn Overview")
+    st.title("Earn Overview", help="Overview of the Sentora PYUSD Earn Vault performance, including TVL, APY, and asset allocation across markets.")
     st.write("Overview of earning opportunities and performance metrics.")
     EARN_VAULT_ID = (
         "A2wsxhA7pF4B2UKVfXocb6TAAP9ipfPJam6oMKgDE5BK"
@@ -60,7 +60,7 @@ def earn_overview():
 
     st.divider()
 
-    st.subheader("Sentora PYUSD Earn Vault Metrics")
+    st.subheader("Sentora PYUSD Earn Vault Metrics", help="Key performance indicators for the Sentora PYUSD Earn Vault, aggregated from all underlying markets.")
 
     with st.container():
         with st.spinner("Loading metrics..."):
@@ -137,7 +137,7 @@ def earn_overview():
 
                 c1, c2, c3, c4 = st.columns(4)
                 with c1:
-                    st.metric("Current TVL", f"{current_tvl:,.0f}")
+                    st.metric("Current TVL", f"{current_tvl:,.0f}", help="Total Value Locked in the Earn Vault. Represents the sum of all assets managed by the vault.")
                     render_delta_bubbles([
                         ("1D", None if tvl_1d is None else (current_tvl - tvl_1d)),
                         ("7D", None if tvl_7d is None else (current_tvl - tvl_7d)),
@@ -150,7 +150,7 @@ def earn_overview():
                 apy_7d = apy_at(7)
                 apy_30d = apy_at(30)
                 with c3:
-                    st.metric("Current APY", f"{apy_sum:.2%}")
+                    st.metric("Current APY", f"{apy_sum:.2%}", help="Current Annual Percentage Yield, including lending interest and all incentives (Farm, Reserves, etc.).")
                     render_delta_bubbles([
                         ("1D", None if apy_1d is None else (apy_sum - apy_1d)),
                         ("7D", None if apy_7d is None else (apy_sum - apy_7d)),
@@ -161,7 +161,7 @@ def earn_overview():
 
             st.divider()
             
-            st.subheader("Current Allocation by Market")
+            st.subheader("Current Allocation by Market", help="Breakdown of how the vault's assets are distributed across different lending markets.")
             markets = [
                 m for m in r["lendingMarketName"].dropna().unique().tolist()
             ]
@@ -187,13 +187,13 @@ def earn_overview():
                     amt_7d, pct_7d = prev_vals(7)
                     amt_30d, pct_30d = prev_vals(30)
                     with cols_alloc[i]:
-                        st.metric(f"{m} Allocation", "" if alloc_curr is None else f"{alloc_curr:,.0f}")
+                        st.metric(f"{m} Allocation", "" if alloc_curr is None else f"{alloc_curr:,.0f}", help=f"Amount of assets allocated to the {m} market.")
                         render_delta_bubbles([
                             ("1D", None if amt_1d is None else (alloc_curr - amt_1d)),
                             ("7D", None if amt_7d is None else (alloc_curr - amt_7d)),
                             ("30D", None if amt_30d is None else (alloc_curr - amt_30d)),
                         ], percent=False)
-                        st.metric(f"{m} Allocation %", "" if ratio_curr is None else f"{ratio_curr:.2%}")
+                        st.metric(f"{m} Allocation %", "" if ratio_curr is None else f"{ratio_curr:.2%}", help=f"Percentage of the vault's total assets allocated to the {m} market.")
                         render_delta_bubbles([
                             ("1D", None if pct_1d is None else (ratio_curr - pct_1d)),
                             ("7D", None if pct_7d is None else (ratio_curr - pct_7d)),
@@ -206,7 +206,7 @@ def earn_overview():
             col_tvl, col_flow = st.columns(2)
 
             with col_tvl:
-                st.subheader("TVL Over Time")
+                st.subheader("TVL Over Time", help="Historical Total Value Locked in the Earn Vault.")
                 tvl_df = mdf[["timestamp", "tvl"]].copy().sort_values("timestamp")
                 fig_tvl = px.area(tvl_df, x="timestamp", y="tvl", labels={"tvl": "TVL", "timestamp": "Time"})
                 st.plotly_chart(fig_tvl, use_container_width=True)
@@ -245,7 +245,7 @@ def earn_overview():
 
             st.divider()
 
-            st.subheader("APY Components (Stacked)")
+            st.subheader("APY Components (Stacked)", help="Breakdown of the APY into its components: Lending Interest, PYUSD Incentives, and KMNO Incentives. Smoothed for readability.")
             apy_df = mdf[[
                 "timestamp",
                 "apyActual",
@@ -294,7 +294,7 @@ def earn_overview():
 
             st.divider()
             
-            st.subheader("Allocation Charts")
+            st.subheader("Allocation Charts", help="Visual representation of how assets are distributed and how the distribution ratio has changed over time.")
             r2 = r.copy()
             r2["lendingMarketName"] = r2["lendingMarketName"].fillna("Unknown")
             c_left, c_right = st.columns(2)
@@ -332,6 +332,7 @@ def earn_overview():
             st.write("No metrics available.")
 
     with st.expander("Reallocation History", expanded=False):
+        st.caption("History of how funds have been moved between markets.", help="Shows the volume of funds (PYUSD) moved into and out of specific markets over time. 'Inflows' are funds moving into a market strategy, 'Outflows' are funds being withdrawn from a market strategy.")
         with st.spinner("Loading data..."):
             data = fetch_allocation_transactions(EARN_VAULT_ID)
         if isinstance(data, list) and len(data) > 0:

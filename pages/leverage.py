@@ -68,12 +68,12 @@ def leverage_page():
                 st.markdown(f"**Data Timestamp:** {pd.to_datetime(max_ts, unit='s')}")
 
                 # Display Tables
-                st.subheader(f"Leverage Analysis for {asset} in {market} Market")
+                st.subheader(f"Leverage Analysis for {asset} in {market} Market", help="Detailed breakdown of positions where the selected asset is either borrowed or used as collateral.")
                 
                 c_left, c_right = st.columns(2)
                 
                 with c_left:
-                    st.markdown(f"**Pairs where {asset} is Borrowed**")
+                    st.subheader(f"Pairs where {asset} is Borrowed", help=f"List of collateral assets used to borrow {asset}. 'LTV' shows the loan-to-value ratio for these specific pairs.")
                     if not df_borrowed.empty:
                         # Format LTV as percentage
                         df_borrowed['ltv'] = df_borrowed['ltv'].astype(float).map('{:.2%}'.format)
@@ -88,7 +88,7 @@ def leverage_page():
                         st.info(f"No positions found where {asset} is borrowed with debt >= ${debt_threshold:,.0f}")
                 
                 with c_right:
-                    st.markdown(f"**Pairs where {asset} is Collateral**")
+                    st.subheader(f"Pairs where {asset} is Collateral", help=f"List of assets borrowed against {asset} collateral. 'LTV' shows the loan-to-value ratio for these specific pairs.")
                     if not df_collateral.empty:
                         # Format LTV as percentage
                         df_collateral['ltv'] = df_collateral['ltv'].astype(float).map('{:.2%}'.format)
@@ -103,9 +103,9 @@ def leverage_page():
                         st.info(f"No positions found where {asset} is collateral with debt >= ${debt_threshold:,.0f}")
                 
                 # Historic Leverage Analysis
-                st.subheader("Historic Leverage Analysis")
+                st.subheader("Historic Leverage Analysis", help="Trends of Loan-to-Value (LTV) ratios over time for positions involving the selected asset.")
                 
-                st.markdown(f"**Pairs where {asset} is Collateral (LTV over time)**")
+                st.subheader(f"Pairs where {asset} is Collateral (LTV over time)", help=f"Historical view of LTV ratios for loans backed by {asset}. Higher LTV indicates higher risk.")
                 if not df_hist_collateral.empty:
                     # Convert timestamp to datetime
                     df_hist_collateral['timestamp'] = pd.to_datetime(df_hist_collateral['timestamp'], unit='s', utc=True)
@@ -130,7 +130,7 @@ def leverage_page():
                 else:
                     st.info(f"No historic data found where {asset} is collateral with debt >= ${debt_threshold:,.0f}")
 
-                st.markdown(f"**Pairs where {asset} is Borrowed (LTV over time)**")
+                st.subheader(f"Pairs where {asset} is Borrowed (LTV over time)", help=f"Historical view of LTV ratios for loans where {asset} is borrowed. Higher LTV indicates higher risk.")
                 if not df_hist_borrowed.empty:
                     # Convert timestamp to datetime
                     df_hist_borrowed['timestamp'] = pd.to_datetime(df_hist_borrowed['timestamp'], unit='s', utc=True)

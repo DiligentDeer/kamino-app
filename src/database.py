@@ -110,6 +110,161 @@ def get_asset_positions(timestamp: int, market_name: str, asset_symbol: str) -> 
         "asset_symbol": asset_symbol
     })
 
+def get_position_details(timestamp: int, market_name: str, asset_symbol: str) -> pd.DataFrame:
+    """
+    Get detailed position data including Health Factor.
+    """
+    query = """
+    SELECT
+        owner,
+        obligation_id,
+        supply_symbol,
+        supply_value,
+        borrow_symbol,
+        borrow_value,
+        CASE
+          WHEN supply_value = 0 OR borrow_value = 0 OR borrow_factor = 0 THEN NULL
+          ELSE ((supply_lt/borrow_factor)/(borrow_value/supply_value))
+        END AS health_factor
+    FROM quant__kamino_user_position_split
+    WHERE lending_market_name = :market_name
+      AND (borrow_symbol = :asset_symbol OR supply_symbol = :asset_symbol)
+      AND "timestamp" = :timestamp
+      AND borrow_factor > 0
+    ORDER BY health_factor ASC
+    """
+    return run_query(query, params={
+        "timestamp": timestamp,
+        "market_name": market_name,
+        "asset_symbol": asset_symbol
+    })
+
+def get_position_at_risk_data(market_name: str, asset_symbol: str, threshold: float = 1.1) -> pd.DataFrame:
+    """
+    Get Position at Risk data (Value at Risk based on HF threshold).
+    """
+    query = """
+    WITH position_metrics AS (
+      SELECT
+        lending_market_name,
+        obligation_id,
+        "timestamp",
+        
+        supply_symbol,
+        supply_value,
+        
+        borrow_symbol,
+        borrow_value,
+        
+        borrow_factor,
+        supply_lt,
+        
+        CASE
+          WHEN supply_value = 0 OR borrow_value = 0 OR borrow_factor = 0 THEN NULL
+          ELSE ((supply_lt/borrow_factor)/(borrow_value/supply_value))
+        END AS health_factor
+        
+      FROM public.quant__kamino_user_position_split
+      WHERE lending_market_name = :market_name
+        AND borrow_factor > 0
+        AND (borrow_symbol = :asset_symbol OR supply_symbol = :asset_symbol)
+    ),
+    
+    asset_positions AS (
+      SELECT
+        *,
+        -- Flag for Asset as borrow
+        CASE WHEN borrow_symbol = :asset_symbol THEN 1 ELSE 0 END AS is_asset_borrow,
+        
+        -- Flag for Asset as supply
+        CASE WHEN supply_symbol = :asset_symbol THEN 1 ELSE 0 END AS is_asset_supply,
+        
+        -- Flag for at-risk positions
+        CASE WHEN health_factor IS NOT NULL AND health_factor <= :threshold THEN 1 ELSE 0 END AS is_at_risk
+        
+      FROM position_metrics
+    ),
+    
+    aggregated_metrics AS (
+      SELECT
+        "timestamp",
+        lending_market_name,
+        
+        -- Asset as Borrow - At Risk
+        SUM(CASE WHEN is_asset_borrow = 1 AND is_at_risk = 1 THEN supply_value ELSE 0 END) AS asset_borrow_collateral_at_risk,
+        SUM(CASE WHEN is_asset_borrow = 1 AND is_at_risk = 1 THEN borrow_value ELSE 0 END) AS asset_borrow_debt_at_risk,
+        
+        -- Asset as Borrow - Total
+        SUM(CASE WHEN is_asset_borrow = 1 THEN supply_value ELSE 0 END) AS asset_borrow_collateral_total,
+        SUM(CASE WHEN is_asset_borrow = 1 THEN borrow_value ELSE 0 END) AS asset_borrow_debt_total,
+        
+        -- Asset as Supply - At Risk
+        SUM(CASE WHEN is_asset_supply = 1 AND is_at_risk = 1 THEN supply_value ELSE 0 END) AS asset_supply_collateral_at_risk,
+        SUM(CASE WHEN is_asset_supply = 1 AND is_at_risk = 1 THEN borrow_value ELSE 0 END) AS asset_supply_debt_at_risk,
+        
+        -- Asset as Supply - Total
+        SUM(CASE WHEN is_asset_supply = 1 THEN supply_value ELSE 0 END) AS asset_supply_collateral_total,
+        SUM(CASE WHEN is_asset_supply = 1 THEN borrow_value ELSE 0 END) AS asset_supply_debt_total,
+        
+        -- Count of positions
+        COUNT(DISTINCT CASE WHEN is_asset_borrow = 1 AND is_at_risk = 1 THEN obligation_id END) AS asset_borrow_positions_at_risk,
+        COUNT(DISTINCT CASE WHEN is_asset_borrow = 1 THEN obligation_id END) AS asset_borrow_positions_total,
+        COUNT(DISTINCT CASE WHEN is_asset_supply = 1 AND is_at_risk = 1 THEN obligation_id END) AS asset_supply_positions_at_risk,
+        COUNT(DISTINCT CASE WHEN is_asset_supply = 1 THEN obligation_id END) AS asset_supply_positions_total
+        
+      FROM asset_positions
+      GROUP BY "timestamp", lending_market_name
+    )
+    
+    SELECT
+      "timestamp",
+      lending_market_name,
+      
+      -- Asset as Borrow metrics
+      asset_borrow_collateral_at_risk,
+      asset_borrow_debt_at_risk,
+      asset_borrow_collateral_total,
+      asset_borrow_debt_total,
+      
+      -- Asset as Borrow percentages
+      CASE WHEN asset_borrow_collateral_total = 0 THEN 0
+           ELSE (asset_borrow_collateral_at_risk / asset_borrow_collateral_total) * 100
+      END AS asset_borrow_collateral_at_risk_pct,
+      
+      CASE WHEN asset_borrow_debt_total = 0 THEN 0
+           ELSE (asset_borrow_debt_at_risk / asset_borrow_debt_total) * 100
+      END AS asset_borrow_debt_at_risk_pct,
+      
+      -- Asset as Supply metrics
+      asset_supply_collateral_at_risk,
+      asset_supply_debt_at_risk,
+      asset_supply_collateral_total,
+      asset_supply_debt_total,
+      
+      -- Asset as Supply percentages
+      CASE WHEN asset_supply_collateral_total = 0 THEN 0
+           ELSE (asset_supply_collateral_at_risk / asset_supply_collateral_total) * 100
+      END AS asset_supply_collateral_at_risk_pct,
+      
+      CASE WHEN asset_supply_debt_total = 0 THEN 0
+           ELSE (asset_supply_debt_at_risk / asset_supply_debt_total) * 100
+      END AS asset_supply_debt_at_risk_pct,
+      
+      -- Position counts
+      asset_borrow_positions_at_risk,
+      asset_borrow_positions_total,
+      asset_supply_positions_at_risk,
+      asset_supply_positions_total
+    
+    FROM aggregated_metrics
+    ORDER BY "timestamp" ASC
+    """
+    return run_query(query, params={
+        "market_name": market_name,
+        "asset_symbol": asset_symbol,
+        "threshold": threshold
+    })
+
 def get_debt_distribution(timestamp: int, market_name: str, asset_symbol: str) -> pd.DataFrame:
     """
     Row 1: Debt distribution backed by [ASSET] collateral.

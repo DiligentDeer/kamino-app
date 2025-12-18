@@ -9,6 +9,7 @@ PYUSD = "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"
 KMNO = "KMNo3nJsBXfcpJTVhZcXLW7RmTwTt4GVFE7suUBo9sS"
 
 PYUSD_RESERVE_MAPPING = {
+    # Asset:Market
     "2gc9Dm1eB6UgVYFBUN9bWks6Kes9PbWSaPaa9DqyvEiN": "7u3HeHxYDLhnCoErrtycNokbQYbWGzLs6JSDqGAv5PfF",
     "FswUCVjvfAuzHCgPDF95eLKscGsLHyJmD6hzkhq26CLe": "DxXdAyU3kCjnyggvHmY5nAwg5cRbbmdyX3npfDMjjMek",
     "92qeAka3ZzCGPfJriDXrE7tiNqfATVCAM6ZjjctR3TrS": "6WEGfej9B9wjxRs6t4BYpb9iCXd8CpTpJ8fVSNzHCC5y",

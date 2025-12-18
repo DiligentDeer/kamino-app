@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from src.database import get_max_position_timestamp, get_liquidation_risk_data
+from src.api import fetch_liquidation_history
+from pages.mappings.markets import get_market_name, PYUSD_RESERVE_MAPPING
 
 @st.cache_data(ttl=300)
 def load_data(timestamp, market, asset):
@@ -40,17 +42,18 @@ def liquidation_risk():
     st.markdown(f"**Data Timestamp:** {pd.to_datetime(ts, unit='s')}")
 
     # Row 1: Supply Side
-    st.subheader("Supply Side Risk Analysis")
+    st.subheader("Supply Side Risk Analysis", help="Analyzes the potential impact of a drop in collateral asset prices. Shows the cumulative value of collateral and debt that would be at risk of liquidation at different price shock levels.")
     st.markdown("Filter by Supply Symbol, analyze impact of Collateral Price Shock.")
 
     supply_symbols = sorted(df['supply_symbol'].unique())
     selected_supply = st.multiselect(
         "Select Supply Symbols", 
         supply_symbols, 
-        default=supply_symbols[:1] if supply_symbols else None
+        default=supply_symbols[:1] if supply_symbols else None,
+        help="Select the collateral asset to analyze."
     )
 
-    adjust_supply = st.toggle("Adjust Collateral Value by Shock", value=False, help="If enabled, Collateral Value is reduced by the shock percentage (Supply Value * (1 - Shock)).")
+    adjust_supply = st.toggle("Adjust Collateral Value by Shock", value=False, help="If enabled, Collateral Value is reduced by the shock percentage (Supply Value * (1 - Shock)). This simulates the post-shock value of the collateral.")
 
     if selected_supply:
         # Filter
@@ -114,17 +117,18 @@ def liquidation_risk():
     st.divider()
 
     # Row 2: Borrow Side
-    st.subheader("Borrow Side Risk Analysis")
+    st.subheader("Borrow Side Risk Analysis", help="Analyzes the potential impact of an increase in borrowed asset prices. Shows the cumulative value of collateral and debt that would be at risk of liquidation at different price shock levels.")
     st.markdown("Filter by Borrow Symbol, analyze impact of Borrow Price Shock.")
 
     borrow_symbols = sorted(df['borrow_symbol'].unique())
     selected_borrow = st.multiselect(
         "Select Borrow Symbols", 
         borrow_symbols, 
-        default=borrow_symbols[:1] if borrow_symbols else None
+        default=borrow_symbols[:1] if borrow_symbols else None,
+        help="Select the borrowed asset to analyze."
     )
 
-    adjust_borrow = st.toggle("Adjust Debt Value by Shock", value=False, help="If enabled, Debt Value is increased by the shock percentage (Borrow Value * (1 + Shock)).")
+    adjust_borrow = st.toggle("Adjust Debt Value by Shock", value=False, help="If enabled, Debt Value is increased by the shock percentage (Borrow Value * (1 + Shock)). This simulates the post-shock value of the debt.")
 
     if selected_borrow:
         # Filter
@@ -184,3 +188,57 @@ def liquidation_risk():
         st.plotly_chart(fig2, use_container_width=True)
     else:
         st.info("Please select at least one Borrow Symbol.")
+
+    st.divider()
+    
+    with st.expander("Historical Liquidation Data (PYUSD)", expanded=False):
+        st.caption("Data source: Sentora DeFi Risk API")
+        
+        # User requested to query only if expanded. 
+        # In Streamlit, we use a button to ensure data is only fetched on user request.
+        if st.button("Load Historical Data", key="load_hist_data"):
+            with st.spinner("Fetching historical data..."):
+                hist_df = fetch_liquidation_history()
+            
+            if not hist_df.empty:
+                # Map Reserve Address to Lending Market Address first
+                hist_df['lending_market_address'] = hist_df['market_address'].map(PYUSD_RESERVE_MAPPING)
+                
+                # Fallback to original address if mapping not found (optional, but good for debugging)
+                hist_df['lending_market_address'] = hist_df['lending_market_address'].fillna(hist_df['market_address'])
+                
+                # Filter out specific unwanted markets
+                hist_df = hist_df[hist_df['lending_market_address'] != "D4c6nsTRjD2Kv7kYEUjtXiw72YKP8a1XHd33g38UpaV8"]
+                
+                # Map Lending Market Address to Market Name
+                hist_df['market_name'] = hist_df['lending_market_address'].apply(get_market_name)
+                
+                # Convert timestamp to datetime
+                hist_df['timestamp'] = pd.to_datetime(hist_df['timestamp'])
+                
+                # Sort by timestamp
+                hist_df = hist_df.sort_values('timestamp')
+                
+                # Chart
+                st.subheader("Liquidation Value Over Time")
+                fig_hist = px.line(
+                    hist_df,
+                    x='timestamp',
+                    y='value',
+                    color='market_name',
+                    title="Cumulative Liquidation Value (PYUSD)",
+                    labels={'value': 'Value ($)', 'timestamp': 'Time', 'market_name': 'Market'}
+                )
+                st.plotly_chart(fig_hist, use_container_width=True)
+                
+                # Table
+                st.subheader("Data Table")
+                # Show Time, Hash, Market, Value
+                display_cols = ['timestamp', 'hash', 'market_name', 'value']
+                st.dataframe(
+                    hist_df[display_cols].sort_values('timestamp', ascending=False),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.info("No historical liquidation data found for PYUSD.")

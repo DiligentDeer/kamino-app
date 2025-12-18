@@ -11,6 +11,7 @@ from pages.pyusd_asset import pyusd_asset
 from pages.usdc_asset import usdc_asset
 from pages.leverage import leverage_page
 from pages.liquidation_risk import liquidation_risk
+from pages.position_at_risk import position_at_risk
 from pages.user_positions import user_positions
 
 earn_overview_page = st.Page(
@@ -50,6 +51,12 @@ liquidation_risk_page = st.Page(
     icon=":material/warning:",
 )
 
+position_at_risk_page = st.Page(
+    position_at_risk,
+    title="Position at Risk",
+    icon=":material/trending_down:",
+)
+
 main_market_page = st.Page(
     main_market,
     title="Main Market",
@@ -83,7 +90,7 @@ pg = st.navigation(
             jlp_market_page,
             maple_market_page,
         ],
-        "Assets": [pyusd_asset_page, usdc_asset_page, leverage_page_obj, liquidation_risk_page],
+        "Assets": [pyusd_asset_page, usdc_asset_page, leverage_page_obj, liquidation_risk_page, position_at_risk_page],
         "Positions": [user_positions_page],
     }
 )

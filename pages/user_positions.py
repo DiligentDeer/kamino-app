@@ -3,7 +3,7 @@ import pandas as pd
 from src.database import get_max_position_timestamp, get_pyusd_main_positions
 
 def user_positions():
-    st.title("User Positions")
+    st.title("User Positions", help="Detailed list of all user positions in the Main market involving PYUSD, including supply and borrow amounts, loan-to-value (LTV) ratios, and liquidation thresholds.")
     
     @st.cache_data(ttl=300)
     def load_data():

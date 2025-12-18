@@ -98,7 +98,7 @@ def render_market_section(market_name, asset_symbol, toggle_key):
                 GROUP BY borrow_symbol, supply_symbol
                 """
 
-                st.subheader(f"Debt distribution backed by {asset_symbol} collateral", help=row1_query)
+                st.subheader(f"Debt distribution backed by {asset_symbol} collateral", help=f"Shows which assets are being borrowed by users who have supplied {asset_symbol} as collateral. 'Active Collateral Value' is the total value of {asset_symbol} securing these loans. 'LTV' represents the aggregate Loan-to-Value ratio for these specific positions.")
                 
                 # Calculate metrics for Debt Distribution
                 if not df_debt.empty:
@@ -107,9 +107,9 @@ def render_market_section(market_name, asset_symbol, toggle_key):
                     ltv_debt = (borrow_value_debt / active_collateral_value) * 100 if active_collateral_value > 0 else 0
                     
                     m1, m2, m3 = st.columns(3)
-                    m1.metric("Active Collateral Value", f"${active_collateral_value:,.2f}")
-                    m2.metric("Borrow Value", f"${borrow_value_debt:,.2f}")
-                    m3.metric("LTV", f"{ltv_debt:.2f}%")
+                    m1.metric("Active Collateral Value", f"${active_collateral_value:,.2f}", help=f"Total value of {asset_symbol} used as collateral for the debts shown below.")
+                    m2.metric("Borrow Value", f"${borrow_value_debt:,.2f}", help="Total value of assets borrowed against the active collateral.")
+                    m3.metric("LTV", f"{ltv_debt:.2f}%", help="Aggregate Loan-to-Value ratio: (Total Borrow Value / Active Collateral Value) * 100.")
 
                 
                 if not df_debt.empty:
@@ -149,7 +149,7 @@ def render_market_section(market_name, asset_symbol, toggle_key):
                 GROUP BY supply_symbol, borrow_symbol
                 """
 
-                st.subheader(f"Collateral distribution backing {asset_symbol} debt", help=row2_query)
+                st.subheader(f"Collateral distribution backing {asset_symbol} debt", help=f"Shows which assets are being used as collateral by users who have borrowed {asset_symbol}. 'Collateral Value' is the total value of these assets. 'Total Borrow' is the amount of {asset_symbol} borrowed against them.")
 
                 # Calculate metrics for Collateral Distribution
                 if not df_collat.empty:
@@ -158,9 +158,9 @@ def render_market_section(market_name, asset_symbol, toggle_key):
                     ltv_collat = (total_borrow_collat / collateral_value_collat) * 100 if collateral_value_collat > 0 else 0
                     
                     m4, m5, m6 = st.columns(3)
-                    m4.metric("Collateral Value", f"${collateral_value_collat:,.2f}")
-                    m5.metric("Total Borrow", f"${total_borrow_collat:,.2f}")
-                    m6.metric("LTV", f"{ltv_collat:.2f}%")
+                    m4.metric("Collateral Value", f"${collateral_value_collat:,.2f}", help="Total value of assets serving as collateral for the borrowed amount.")
+                    m5.metric("Total Borrow", f"${total_borrow_collat:,.2f}", help=f"Total value of {asset_symbol} borrowed against the shown collateral.")
+                    m6.metric("LTV", f"{ltv_collat:.2f}%", help="Aggregate Loan-to-Value ratio: (Total Borrow Value / Collateral Value) * 100.")
 
                 
                 
@@ -195,6 +195,7 @@ def render_market_section(market_name, asset_symbol, toggle_key):
 
             if not df_pos.empty:
                 df_filtered = filter_dataframe(df_pos, key_suffix=f"{market_name}_{asset_symbol}")
+                st.subheader("Position Details", help="Detailed list of user positions corresponding to the above analysis. You can filter this table using the options above.")
                 st.dataframe(
                     df_filtered.style.format({
                         "supply_value": "{:,.2f}",

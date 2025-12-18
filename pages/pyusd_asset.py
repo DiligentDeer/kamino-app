@@ -2,7 +2,7 @@ import streamlit as st
 from pages.utils.asset_utils import render_market_section
 
 def pyusd_asset():
-    st.title("PYUSD across Markets")
+    st.title("PYUSD across Markets", help="Aggregated view of PYUSD positions across different Kamino markets (Main, JLP, Maple).")
     st.write("User positions involving PYUSD across different markets.")
 
     # --- Render Sections ---
