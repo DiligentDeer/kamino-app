@@ -35,7 +35,7 @@ def fetch_market_history(market: str, reserve: str, start: str, end: str):
 def render_market_details(market_name: str, lending_market: str, reserve_address: str, asset_name: str = "PYUSD"):
     st.title(f"{asset_name}: {market_name}", help=f"Deep dive into the {asset_name} reserve within the {market_name}. Includes supply/borrow metrics, utilization rates, and historical trends.")
     NOW = datetime.now(timezone.utc)
-    START = NOW - timedelta(days=31)
+    START = NOW - timedelta(days=90)
     end_str = NOW.isoformat(timespec="milliseconds").replace("+00:00", "Z")
     start_str = START.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
@@ -90,6 +90,10 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         scale = (10 ** df["decimals"].fillna(0)).astype(float)
         df["reserveDepositLimit"] = df["reserveDepositLimit"] / scale
         df["reserveBorrowLimit"] = df["reserveBorrowLimit"] / scale
+
+    df_30d = df.copy()
+    if not df.empty:
+        df_30d = df[df["timestamp"] >= (NOW - timedelta(days=31))]
 
     latest = df.sort_values("timestamp").tail(1)
     if not latest.empty:
@@ -271,7 +275,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         with c_left:
             st.subheader("Supply & Borrow Over Time", help="Historical trend of Total Supply and Total Borrows. Smoothed with 3-period rolling median to reduce noise.")
             use_log_scale = st.toggle("Use log scale", value=True, key=f"log_toggle_{market_name}")
-            sb = df[["timestamp", "totalSupply", "totalBorrows"]].copy().sort_values("timestamp")
+            sb = df_30d[["timestamp", "totalSupply", "totalBorrows"]].copy().sort_values("timestamp")
             sb["sup_sm"] = pd.to_numeric(sb["totalSupply"], errors="coerce").rolling(window=3, min_periods=1).median()
             sb["bor_sm"] = pd.to_numeric(sb["totalBorrows"], errors="coerce").rolling(window=3, min_periods=1).median()
             fig_sb = go.Figure()
@@ -284,7 +288,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
 
         with c_right:
             st.subheader("Cap Utilization Over Time", help="Historical trend of Supply and Borrow Cap utilization. Shows how close the market is to its limits. Smoothed with 3-period rolling median.")
-            cdf = df[["timestamp", "totalSupply", "totalBorrows", "reserveDepositLimit", "reserveBorrowLimit"]].copy().sort_values("timestamp")
+            cdf = df_30d[["timestamp", "totalSupply", "totalBorrows", "reserveDepositLimit", "reserveBorrowLimit"]].copy().sort_values("timestamp")
             cdf["supply_cap_util"] = pd.to_numeric(cdf["totalSupply"], errors="coerce") / pd.to_numeric(cdf["reserveDepositLimit"], errors="coerce")
             cdf["borrow_cap_util"] = pd.to_numeric(cdf["totalBorrows"], errors="coerce") / pd.to_numeric(cdf["reserveBorrowLimit"], errors="coerce")
             cdf["supply_cap_util_sm"] = cdf["supply_cap_util"].rolling(window=3, min_periods=1).median()
@@ -304,7 +308,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
             st.subheader("Daily Supply Flow (Estimated)", help="Net daily change in Total Supply. Positive values indicate net deposits/inflows, negative values indicate net withdrawals/outflows.")
             
             # Resample to daily
-            daily_supply = df.set_index("timestamp")["totalSupply"].copy()
+            daily_supply = df_30d.set_index("timestamp")["totalSupply"].copy()
             daily_supply = pd.to_numeric(daily_supply, errors="coerce").resample("D").last()
             
             flow_supply = daily_supply.diff().reset_index()
@@ -333,7 +337,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
             st.subheader("Daily Borrow Flow (Estimated)", help="Net daily change in Total Borrows. Positive values indicate net new borrowing, negative values indicate net repayments.")
             
             # Resample to daily
-            daily_borrow = df.set_index("timestamp")["totalBorrows"].copy()
+            daily_borrow = df_30d.set_index("timestamp")["totalBorrows"].copy()
             daily_borrow = pd.to_numeric(daily_borrow, errors="coerce").resample("D").last()
             
             flow_borrow = daily_borrow.diff().reset_index()
@@ -363,7 +367,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
         c3, c4 = st.columns(2)
         with c3:
             st.subheader("Utilization Over Time", help="Historical trend of Market Utilization (Total Borrows / Total Supply). Smoothed with 3-period rolling median.")
-            udf = df[["timestamp", "totalBorrows", "totalSupply"]].copy().sort_values("timestamp")
+            udf = df_30d[["timestamp", "totalBorrows", "totalSupply"]].copy().sort_values("timestamp")
             udf["utilization"] = pd.to_numeric(udf["totalBorrows"], errors="coerce") / pd.to_numeric(udf["totalSupply"], errors="coerce")
             udf["util_sm"] = udf["utilization"].rolling(window=3, min_periods=1).median()
             fig_u = go.Figure()
@@ -373,7 +377,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
 
         with c4:
             st.subheader("Rates Over Time", help="Historical trend of Borrow and Supply APY. Smoothed with 3-period rolling median.")
-            rdf = df[["timestamp", "borrowInterestAPY", "supplyInterestAPY"]].copy().sort_values("timestamp")
+            rdf = df_30d[["timestamp", "borrowInterestAPY", "supplyInterestAPY"]].copy().sort_values("timestamp")
             rdf["borrow_sm"] = pd.to_numeric(rdf["borrowInterestAPY"], errors="coerce").rolling(window=3, min_periods=1).median() * 100.0
             rdf["supply_sm"] = pd.to_numeric(rdf["supplyInterestAPY"], errors="coerce").rolling(window=3, min_periods=1).median() * 100.0
             fig_r = go.Figure()
@@ -384,7 +388,7 @@ def render_market_details(market_name: str, lending_market: str, reserve_address
 
         st.divider()
 
-        st.subheader("IRM Changes Comparison", help="Compares the Interest Rate Model (IRM) parameters over time. Shows the past 2 latest changes in the 30 days window compared to the current IRM configuration.")
+        st.subheader("IRM Changes Comparison", help="Compares the Interest Rate Model (IRM) parameters over time. Shows the past 3 latest changes in the 90 days window compared to the current IRM configuration.")
         curves = df[["timestamp", "borrowCurve"]].copy().sort_values("timestamp")
         def canon(x):
             if x is None:
