@@ -83,12 +83,13 @@ def render_market_section(market_name, asset_symbol, toggle_key):
             with st.spinner(f"Loading {market_name} Market data..."):
                 # Always fetch the latest timestamp first to ensure data freshness
                 current_ts = get_max_position_timestamp()
+                st.info(f"Queried max timestamp from DB: `{current_ts}`")
                 ts, df_pos, df_debt, df_collat = load_market_data(market_name, asset_symbol, current_ts)
             
             if ts:
                 # Convert timestamp to readable format
                 ts_dt = datetime.fromtimestamp(ts)
-                st.caption(f"Data Timestamp: {ts_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                st.caption(f"Data Timestamp: {ts_dt.strftime('%Y-%m-%d %H:%M:%S')} (raw: `{ts}`)")
 
                 # Row 1: Debt distribution backed by [ASSET] collateral
                 row1_query = f"""
